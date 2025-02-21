@@ -1,0 +1,720 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView Dashboard with RSS News</title>
+    <link href="https://fonts.googleapis.com/css2?family=Helvetica+Neue+Light&display=swap" rel="stylesheet">
+    <style>
+        
+        * {
+            margin: 2;
+            padding: 2;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            background-color: #121212;
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+        .controls {
+            width: 100%;
+            height: 80px;
+            padding: px;
+            background-color: #1e1e1e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+        }
+        .controls label {
+            color: white;
+        }
+        .controls input, .controls select {
+            padding: 3px;
+            font-size: 14px;
+            text-align: center;
+            width: 100px;
+        }
+        .controls button {
+            padding: 3px 8px;
+            font-size: 14px;
+            background-color: #18710e;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+        .live-tickers {
+            width: 100%;
+            height: 25px;
+            background-color: #292929;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 13px;
+        }
+        .rss-news-bar {
+            width: 100%;
+            background-color: #292929;
+            padding: 20px;
+            color: white;
+            font-size: 14px;
+            text-align: left;
+            max-height: 250px;
+            overflow-y: scroll;
+        }
+        .rss-news-bar a {
+            color: white;
+            text-decoration: none;
+        }
+        .rss-news-bar a:hover {
+            text-decoration: underline;
+        }
+        .blocks-container {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 70px);
+            width: 100%;
+        }
+        .block {
+            flex: 1;
+            height: 100%;
+            display: flex;
+        }
+        .tradingview-widget-container {
+            height: 100%;
+            width: 120%;
+            display: flex;
+        }
+        .tradingview-widget-container__widget {
+            flex-grow: 1;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+    <script type="text/javascript">
+        function updateTicker(ticker) {
+            document.getElementById("tickerInput").value = ticker;
+            updateCharts();
+            updateRSS(ticker);  // Actualiza las noticias con el ticker actual
+            updateTradingViewWidget(ticker);  // Actualiza el widget en Pendiente 1
+
+            // Actualizar el widget de TradingView en la parte superior
+    loadTradingViewWidget(ticker);
+
+updateRSS(ticker);  // Mantiene la funcionalidad original
+
+function updateTicker(ticker) {
+    document.getElementById("tickerInput").value = ticker;
+
+    // Actualizar el widget de TradingView en la parte superior
+    loadTradingViewWidget(ticker);
+
+    // Actualizar las noticias con el nuevo ticker
+    updateRSS(ticker);
+}
+
+// Función para cargar noticias en la mitad inferior
+function updateRSS(ticker) {
+    let rssUrl = `https://finance.yahoo.com/rss/headline?s=${ticker}`;
+    fetchRSS(rssUrl);
+}
+
+// Función para obtener y mostrar las noticias
+function fetchRSS(url) {
+    let proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
+    
+    fetch(proxyUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.contents) {
+                document.getElementById("rssFeedBottom").innerHTML = parseRSS(data.contents);
+            } else {
+                console.error('No se recibieron datos RSS válidos.');
+            }
+        })
+        .catch(error => console.error('Error al obtener noticias:', error));
+}
+
+/// Función para procesar y mostrar las noticias en formato HTML con fecha
+function parseRSS(xmlString) {
+    let parser = new DOMParser();
+    let xml = parser.parseFromString(xmlString, "text/xml");
+    let items = xml.getElementsByTagName("item");
+    let newsHTML = "";
+
+    for (let i = 0; i < Math.min(items.length, 8); i++) { // Mostrar hasta 8 noticias
+        let title = items[i].getElementsByTagName("title")[0].textContent;
+        let link = items[i].getElementsByTagName("link")[0].textContent;
+        let pubDate = items[i].getElementsByTagName("pubDate")[0]?.textContent || "Fecha no disponible";
+
+        // Convertir fecha al formato legible
+        let dateObj = new Date(pubDate);
+        let formattedDate = isNaN(dateObj.getTime()) ? "Fecha no disponible" : dateObj.toLocaleDateString("en-US", {
+            year: "numeric",  // Ej: "2024"
+            month: "short",   // Ej: "Feb"
+            day: "numeric"    // Ej: "21"
+        });
+
+        // Agregar noticia con fecha incluida
+        newsHTML += `<p><strong>[${formattedDate}]</strong> <a href="${link}" target="_blank">${title}</a></p>`;
+    }
+
+    return newsHTML;
+}
+
+
+// Cargar noticias al iniciar la página con el ticker predeterminado
+document.addEventListener("DOMContentLoaded", function () {
+    updateTicker("PLTR"); // Carga inicial con PLTR
+});
+
+
+        }
+
+        // Función para actualizar el widget de TradingView en "Pendiente 1"
+function updateTradingViewWidget(ticker) {
+    let widgetContainer = document.getElementById("tradingview-widget-container");
+    widgetContainer.innerHTML = "";  // Borra el widget anterior
+
+    let script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+        "interval": "1h",
+        "width": "100%",
+        "isTransparent": false,
+        "height": "100%",
+        "symbol": ticker, // Nuevo ticker dinámico
+        "showIntervalTabs": true,
+        "displayMode": "single",
+        "locale": "en",
+        "colorTheme": "dark"
+    });
+
+    widgetContainer.appendChild(script); // Agrega el nuevo widget
+}
+
+        function updateCharts() {
+            let ticker = document.getElementById("tickerInput").value.toUpperCase();
+            updateChart("chart1", ticker, "3", ["STD;VWAP", "STD;RSI", "STD;Bollinger_Bands", "STD;Stochastic_RSI"], true);
+            updateChart("chart2", ticker, "60", ["STD;MACD", "STD;EMA", "STD;Stochastic_RSI", "Volume@tv-basicstudies"], true);
+            updateChart("chart3", ticker, "D", ["STD;Bollinger_Bands", "STD;EMA", "STD;RSI", "Volume@tv-basicstudies", "details"], false);
+        }
+
+        function updateChart(containerId, symbol, interval, studies, hideLegend) {
+            document.getElementById(containerId).innerHTML = "";
+            
+            new TradingView.widget({
+                "autosize": true,
+                "symbol": symbol,
+                "interval": interval,
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "hide_legend": hideLegend,
+                "hide_top_toolbar": containerId === "chart3" ? false : false,  // Only add details for 1D chart
+                "allow_symbol_change": true,
+                "save_image": false,
+                "calendar": false,
+                "studies": studies,
+                "hide_volume": false,
+                "details": containerId === "chart3" ? false : false,  // Only add details for 1D chart
+                "container_id": containerId
+            });
+        }
+
+        function updateRSS(ticker) {
+            let rssUrl = `https://finance.yahoo.com/rss/headline?s=${ticker}`;
+            fetchRSS(rssUrl);
+        }
+
+        function fetchRSS(url) {
+            let proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
+
+            fetch(proxyUrl)
+                .then(response => response.json())
+                .then(data => {
+                    let rssContent = data.contents;
+                    parseRSS(rssContent);
+                })
+                .catch(error => {
+                    console.error('Error fetching RSS:', error);
+                });
+        }
+
+        function parseRSS(xmlContent) {
+    let parser = new DOMParser();
+    let xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+    let items = xmlDoc.getElementsByTagName("item");
+
+    let newsHtml = '';
+
+    for (let i = 0; i < Math.min(7, items.length); i++) {
+        let title = items[i].getElementsByTagName("title")[0].textContent;
+        let link = items[i].getElementsByTagName("link")[0].textContent;
+        let pubDate = items[i].getElementsByTagName("pubDate")[0]?.textContent || "";
+
+        // Convertir la fecha a formato DD.MM.YY
+        let formattedDate = formatDate(pubDate);
+
+        newsHtml += `<div><span style="color: #bbb;">${formattedDate}</span> - <a href="${link}" target="_blank">${title}</a></div>`;
+    }
+
+    document.getElementById('rssNewsContainer').innerHTML = newsHtml;
+}
+
+// Función para formatear la fecha en DD.MM.YY
+function formatDate(pubDate) {
+    if (!pubDate) return "??.??.??"; // Si no hay fecha, mostrar esto
+
+    let date = new Date(pubDate);
+    let day = String(date.getDate()).padStart(2, '0');
+    let month = String(date.getMonth() + 1).padStart(2, '0'); // Meses en JS van de 0 a 11
+    let year = String(date.getFullYear()).slice(-2); // Solo los últimos 2 dígitos del año
+
+    return `${day}.${month}.${year}`;
+}
+
+
+        window.onload = function() {
+            updateTicker('PLTR');  // Inicializa con un ticker predeterminado
+        };
+    </script>
+</head>
+<body>
+
+    <div class="controls">
+        <label for="tickerInput">Change Ticker:</label>
+        <input type="text" id="tickerInput" value="PLTR" maxlength="10" oninput="updateTicker(this.value)" />
+        <button onclick="updateCharts()">Update</button>
+
+        <label for="chileSelect">Chile:</label>
+        <select id="chileSelect" onchange="updateTicker(this.value)">
+            <option value="SP_IPSA">IPSA - IPSA</option
+            <option value="CCU">CCU - Compañía Cervecerías Unidas S.A.</option>
+            <option value="VAPORES">VAPORES - Compañía Sudamericana de Vapores S.A.</option>
+            <option value="SQM-B">SQM-B - Sociedad Química y Minera de Chile S.A.</option>
+            <option value="CHILE">CHILE - Banco de Chile</option>
+            <option value="CENCOSUD">CENCOSUD - Cencosud S.A.</option>
+            <option value="LTM">LTM - LATAM Airlines Group S.A.</option>
+            <option value="BSANTANDER">BSANTANDER - Banco Santander-Chile</option>
+            <option value="ANDINA-B">ANDINA-B - Embotelladora Andina S.A.</option>
+            <option value="ANTARCHILE">ANTARCHILE - Antarchile S.A.</option>
+            <option value="ENELCHILE">ENELCHILE - Enel Chile S.A.</option>
+            <option value="BCI">BCI - Banco de Crédito e Inversiones</option>
+            <option value="BANVIDA">BANVIDA - Banvida S.A.</option>
+            <option value="ENELGXCH">ENELGXCH - Enel Generación Chile S.A.</option>
+            <option value="RIPLEY">RIPLEY - Ripley Corp S.A.</option>
+            <option value="PUCOBRE">PUCOBRE - Sociedad Punta del Cobre S.A.</option>
+            <option value="AGUAS-A">AGUAS-A - Aguas Andinas S.A.</option>
+            <option value="ALMENDRAL">ALMENDRAL - Almendral S.A.</option>
+            <option value="ENJOY">ENJOY - Enjoy S.A.</option>
+            <option value="IANSA">IANSA - Empresas Iansa S.A.</option>
+            <option value="HABITAT">HABITAT - AFP Habitat S.A.</option>
+            <option value="BICECORP">BICECORP - Bicecorp S.A.</option>
+            <option value="ORO BLANCO">ORO BLANCO - Sociedad de Inversiones Oro Blanco S.A.</option>
+            <option value="SALFACORP">SALFACORP - Salfacorp S.A.</option>
+            <option value="ENTEL">ENTEL - Empresa Nacional de Telecomunicaciones S.A.</option>
+            <option value="CENCOMALLS">CENCOMALLS - Cencosud Shopping S.A.</option>
+            <option value="CINTAC">CINTAC - Cintac S.A.</option>
+            <option value="ILC">ILC - Inversiones La Construcción S.A.</option>
+            <option value="HIPERMARC">HIPERMARC - Hipermarc S.A.</option>
+            <option value="INDISA">INDISA - Instituto de Diagnóstico S.A.</option>
+            <option value="INGEVEC">INGEVEC - Ingevec S.A.</option>
+            <option value="INVERCAP">INVERCAP - Invercap S.A.</option>
+            <option value="LIPIGAS">LIPIGAS - Empresas Lipigas S.A.</option>
+            <option value="MASISA">MASISA - Masisa S.A.</option>
+            <option value="MELON">MELON - Melón S.A.</option>
+            <option value="MINERA">MINERA - Minera Valparaíso S.A.</option>
+            <option value="MOLLER">MOLLER - Constructora Moller y Pérez-Cotapos S.A.</option>
+            <option value="MOLYMET">MOLYMET - Molibdenos y Metales S.A.</option>
+            <option value="MULTI_X">MULTI_X - Multiexport Foods S.A.</option>
+            <option value="NAVARINO">NAVARINO - Navarino S.A.</option>
+            <option value="NAVIERA">NAVIERA - Grupo Empresas Navieras S.A.</option>
+            <option value="NITRATOS">NITRATOS - Nitratos de Chile S.A.</option>
+            <option value="NORTEGRAN">NORTEGRAN - Norte Grande S.A.</option>
+            <option value="NUEVAPOLAR">NUEVAPOLAR - La Polar S.A.</option>
+            <option value="PAZ">PAZ - Paz Corp S.A.</option>
+            <option value="PEHUENCHE">PEHUENCHE - Empresa Eléctrica Pehuenche S.A.</option>
+            <option value="PILMAIQUEN">PILMAIQUEN - Empresa Eléctrica Pilmaiquén S.A.</option>
+            <option value="PLACORP">PLACORP - Plaza S.A.</option>
+            <option value="QUINENCO">QUINENCO - Quiñenco S.A.</option>
+            <option value="SECURITY">SECURITY - Grupo Security S.A.</option>
+            <option value="SMU">SMU - SMU S.A.</option>
+            <option value="SONDA">SONDA - Sonda S.A.</option>
+            <option value="TRICOT">TRICOT - Empresas Tricot S.A.</option>
+            <option value="VAPORES">VAPORES - Compañía Sudamericana de Vapores S.A.</option>
+            <option value="ZOFRI">ZOFRI - Zona Franca de Iquique S.A.</option> 
+        </select>
+
+        <label for="etfSelect">ETFs USA:</label>
+        <select id="etfSelect" onchange="updateTicker(this.value)">
+            <option value="SPY">SPY - SPDR S&P 500 ETF Trust</option>
+            <option value="QQQ">QQQ - Invesco QQQ Trust</option>
+            <option value="IWM">IWM - iShares Russell 2000 ETF</option>
+            <option value="TQQQ">TQQQ - ProShares UltraPro QQQ</option>
+            <option value="FXI">FXI - iShares China Large-Cap ETF</option>
+            <option value="TLT">TLT - iShares 20+ Year Treasury Bond ETF</option>
+            <option value="IVV">IVV - iShares Core S&P 500 ETF</option>
+            <option value="GLD">GLD - SPDR Gold Trust</option>
+            <option value="VOO">VOO - Vanguard S&P 500 ETF</option>
+            <option value="IBIT">IBIT - iShares Bitcoin Trust</option>
+            <option value="LQD">LQD - iShares iBoxx $ Investment Grade Corporate Bond ETF</option>
+            <option value="HYG">HYG - iShares iBoxx $ High Yield Corporate Bond ETF</option>
+            <option value="SOXL">SOXL - Direxion Daily Semiconductor Bull 3X Shares</option>
+            <option value="XLF">XLF - Financial Select Sector SPDR Fund</option>
+            <option value="XLV">XLV - Health Care Select Sector SPDR Fund</option>
+            <option value="EEM">EEM - iShares MSCI Emerging Markets ETF</option>
+            <option value="GDX">GDX - VanEck Vectors Gold Miners ETF</option>
+            <option value="USO">USO - United States Oil Fund</option>
+            <option value="EWJ">EWJ - iShares MSCI Japan ETF</option>
+            <option value="SLV">SLV - iShares Silver Trust</option>
+        </select>
+
+        <label for="stockSelect">Acciones USA:</label>
+        <select id="stockSelect" onchange="updateTicker(this.value)">
+            <option value="AAPL">AAPL - Apple Inc.</option>
+            <option value="MSFT">MSFT - Microsoft Corporation</option>
+            <option value="AMZN">AMZN - Amazon.com, Inc.</option>
+            <option value="GOOGL">GOOGL - Alphabet Inc. (Class A)</option>
+            <option value="GOOG">GOOG - Alphabet Inc. (Class C)</option>
+            <option value="BRK.B">BRK.B - Berkshire Hathaway Inc. (Class B)</option>
+            <option value="TSLA">TSLA - Tesla, Inc.</option>
+            <option value="NVDA">NVDA - NVIDIA Corporation</option>
+            <option value="JNJ">JNJ - Johnson & Johnson</option>
+            <option value="V">V - Visa Inc.</option>
+            <option value="UNH">UNH - UnitedHealth Group Incorporated</option>
+            <option value="META">META - Meta Platforms, Inc.</option>
+            <option value="XOM">XOM - Exxon Mobil Corporation</option>
+            <option value="PG">PG - The Procter & Gamble Company</option>
+            <option value="JPM">JPM - JPMorgan Chase & Co.</option>
+            <option value="HD">HD - The Home Depot, Inc.</option>
+            <option value="MA">MA - Mastercard Incorporated</option>
+            <option value="PFE">PFE - Pfizer Inc.</option>
+            <option value="CVX">CVX - Chevron Corporation</option>
+            <option value="ABBV">ABBV - AbbVie Inc.</option>
+            <option value="KO">KO - The Coca-Cola Company</option>
+            <option value="PEP">PEP - PepsiCo, Inc.</option>
+            <option value="MRK">MRK - Merck & Co., Inc.</option>
+            <option value="TMO">TMO - Thermo Fisher Scientific Inc.</option>
+            <option value="AVGO">AVGO - Broadcom Inc.</option>
+            <option value="CSCO">CSCO - Cisco Systems, Inc.</option>
+            <option value="ACN">ACN - Accenture plc</option>
+            <option value="ABT">ABT - Abbott Laboratories</option>
+            <option value="DHR">DHR - Danaher Corporation</option>
+            <option value="NFLX">NFLX - Netflix, Inc.</option>
+            <option value="VZ">VZ - Verizon Communications Inc.</option>
+            <option value="ADBE">ADBE - Adobe Inc.</option>
+            <option value="NKE">NKE - NIKE, Inc.</option>
+            <option value="INTC">INTC - Intel Corporation</option>
+            <option value="CMCSA">CMCSA - Comcast Corporation</option>
+            <option value="WMT">WMT - Walmart Inc.</option>
+            <option value="DIS">DIS - The Walt Disney Company</option>
+            <option value="BMY">BMY - Bristol-Myers Squibb Company</option>
+            <option value="MDT">MDT - Medtronic plc</option>
+            <option value="PM">PM - Philip Morris International Inc.</option>
+            <option value="HON">HON - Honeywell International Inc.</option>
+            <option value="NEE">NEE - NextEra Energy, Inc.</option>
+            <option value="ORCL">ORCL - Oracle Corporation</option>
+            <option value="MCD">MCD - McDonald's Corporation</option>
+            <option value="TXN">TXN - Texas Instruments Incorporated</option>
+            <option value="LIN">LIN - Linde plc</option>
+            <option value="UNP">UNP - Union Pacific Corporation</option>
+            <option value="QCOM">QCOM - QUALCOMM Incorporated</option>
+            <option value="AMD">AMD - Advanced Micro Devices, Inc.</option>
+            <option value="AMGN">AMGN - Amgen Inc.</option>
+            <option value="LOW">LOW - Lowe's Companies, Inc.</option>
+            <option value="UPS">UPS - United Parcel Service, Inc.</option>
+            <option value="SPGI">SPGI - S&P Global Inc.</option>
+            <option value="MS">MS - Morgan Stanley</option>
+            <option value="RTX">RTX - Raytheon Technologies Corporation</option>
+            <option value="GS">GS - The Goldman Sachs Group, Inc.</option>
+            <option value="BLK">BLK - BlackRock, Inc.</option>
+            <option value="CVS">CVS - CVS Health Corporation</option>
+            <option value="SCHW">SCHW - The Charles Schwab Corporation</option>
+            <option value="AMT">AMT - American Tower Corporation</option>
+            <option value="PLD">PLD - Prologis, Inc.</option>
+            <option value="COST">COST - Costco Wholesale Corporation</option>
+            <option value="IBM">IBM - International Business Machines Corporation</option>
+            <option value="SBUX">SBUX - Starbucks Corporation</option>
+            <option value="BA">BA - The Boeing Company</option>
+            <option value="MDLZ">MDLZ - Mondelez International, Inc.</option>
+            <option value="DE">DE - Deere & Company</option>
+            <option value="ISRG">ISRG - Intuitive Surgical, Inc.</option>
+            <option value="T">T - AT&T Inc.</option>
+            <option value="PYPL">PYPL - PayPal Holdings, Inc.</option>
+            <option value="GS">GS - The Goldman Sachs Group, Inc.</option>
+            <option value="AXP">AXP - American Express Company</option>
+            <option value="MO">MO - Altria Group, Inc.</option>
+            <option value="BKNG">BKNG - Booking Holdings Inc.</option>
+            <option value="ADP">ADP - Automatic Data Processing, Inc.</option>
+            <option value="NOW">NOW - ServiceNow, Inc.</option>
+            <option value="LMT">LMT - Lockheed Martin Corporation</option>
+            <option value="GILD">GILD - Gilead Sciences, Inc.</option>
+            <option value="SYK">SYK - Stryker Corporation</option>
+            <option value="INTU">INTU - Intuit Inc.</option>
+            <option value="CAT">CAT - Caterpillar Inc.</option>
+            <option value="ELV">ELV - Elevance Health, Inc.</option>
+            <option value="C">C - Citigroup Inc.</option>
+            <option value="GE">GE - General Electric Company</option>
+            <option value="TJX">TJX - The TJX Companies, Inc.</option>
+            <option value="MMM">MMM - 3M Company</option>
+            <option value="BDX">BDX - Becton, Dickinson and Company</option>
+        </select>
+
+        *
+        
+        <input type="text" id="youtubeURL" placeholder="Ingresa URL de YouTube y presiona Enter" onkeypress="handleKeyPress(event)">
+
+    </div>
+
+    <!-- TradingView Widget BEGIN -->
+<div class="tradingview-widget-container">
+    <div class="tradingview-widget-container__widget"></div>
+    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+    {
+    "symbols": [
+      {
+        "proName": "BITSTAMP:BTCUSD",
+        "title": "Bitcoin"
+      },
+      {
+        "description": "",
+        "proName": "SP:SPX"
+      },
+      {
+        "description": "",
+        "proName": "TVC:VIX"
+      },
+      {
+        "description": "",
+        "proName": "NASDAQ:NDX"
+      },
+      {
+        "description": "",
+        "proName": "PEPPERSTONE:USDCLP"
+      }
+    ],
+    "showSymbolLogo": true,
+    "isTransparent": false,
+    "displayMode": "adaptive",
+    "colorTheme": "dark",
+    "locale": "en"
+  }
+    </script>
+  </div>
+  <!-- TradingView Widget END -->
+   
+
+   <!-- Contenedor principal de la barra de noticias con 4 secciones -->
+<div style="display: flex; width: 100%; background-color: #292929; padding: 10px; gap: 10px;">
+
+    <!-- Sección 1: Contenedor RSS (Dividido en 2 mitades) -->
+<div class="rss-news-bar" style="flex: 1; padding: 0px; overflow: hidden; display: flex; flex-direction: column; height: 100%;">
+    
+    <!-- Mitad superior: Widget de TradingView con actualización de ticker -->
+    <div id="rssWidgetContainer" style="flex: 1; overflow-y: auto; padding: 5px; border-bottom: 1px solid #444;">
+        <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget" id="tradingview-widget"></div>
+            <script type="text/javascript">
+                function loadTradingViewWidget(ticker) {
+                    let widgetContainer = document.getElementById("tradingview-widget");
+                    widgetContainer.innerHTML = ""; // Elimina el widget anterior
+
+                    let script = document.createElement("script");
+                    script.type = "text/javascript";
+                    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js";
+                    script.async = true;
+                    script.innerHTML = JSON.stringify({
+                        "symbol": ticker,
+                        "width": "100%",
+                        "isTransparent": false,
+                        "colorTheme": "dark",
+                        "locale": "en"
+                    });
+
+                    widgetContainer.appendChild(script);
+                }
+            </script>
+        </div>
+    </div>
+
+    <!-- Mitad inferior: Noticias RSS duplicadas -->
+    <div id="rssNewsContainer2" style="flex: 1; overflow-y: auto; padding: 5px;">
+        <div id="rssFeedBottom">Cargando noticias...</div>
+    </div>
+
+</div>
+    <!-- Sección 1: Widget de TradingView con Zoom Out -->
+<div class="rss-news-bar" style="flex: 1; padding: 0px; text-align: center; overflow: hidden; position: relative;">
+    <div id="tradingview-widget-container" style="width: 140%; height: 160%; transform: scale(0.70); transform-origin: top left;"></div>
+</div>
+
+<!-- Sección 5: Reproductor de video -->
+<div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+    <video id="video" width="100%" height=250px controls autoplay></video>
+</div>
+
+
+
+<!-- Sección 5: Reproductor de Youtube -->
+<div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+    <div id="videoContainer" width="100%" height=250px controls autoplay></video>
+        <!-- Aquí se insertará el iframe de YouTube -->
+    </div>
+    
+    <script>
+        function handleKeyPress(event) {
+            if (event.key === "Enter") {
+                loadYouTubeVideo();
+            }
+        }
+    
+        function loadYouTubeVideo() { 
+            let urlInput = document.getElementById("youtubeURL").value;
+            let videoID = extractYouTubeID(urlInput);
+    
+            if (videoID) {
+                let embedURL = `https://www.youtube.com/embed/${videoID}?autoplay=1`;
+                let iframe = `<iframe width="100%" height="120%" src="${embedURL}" allowfullscreen></iframe>`;
+                
+                // Insertar el video en el contenedor ya existente
+                document.getElementById("videoContainer").innerHTML = iframe;
+            } else {
+                alert("Por favor, ingresa una URL válida de YouTube.");
+            }
+        }
+    
+        function extractYouTubeID(url) {
+            let match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+            return match ? match[1] : null;
+        }
+    </script>
+</div>
+
+    <!-- Sección 3: Widget de TradingView -->
+<div class="rss-news-bar" style="flex: 1; padding: 0px; text-align: center; overflow: hidden;">
+    <div class="tradingview-widget-container" style="width: 100%; height: 150%;">
+        <div class="tradingview-widget-container__widget" style="width: 100%; height: 100%;"></div>        
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
+        {
+        "feedMode": "all_symbols",
+        "isTransparent": false,
+        "displayMode": "adaptive",
+        "width": "100%",
+        "height": "100%",
+        "colorTheme": "dark",
+        "locale": "en"
+        }
+        </script>
+    </div>
+</div>
+
+<!-- Sección 4: Widget de TradingView -->
+<div class="rss-news-bar" style="flex: 1; padding: 0px; text-align: center; overflow: auto;">
+    <div class="tradingview-widget-container" style="width: 100%; height: 150%;">
+        <div class="tradingview-widget-container__widget" style="width: 100%; height: 100%;"></div>      
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js" async>
+            {
+            "colorTheme": "dark",
+            "dateRange": "3M",
+            "exchange": "US",
+            "showChart": false,
+            "locale": "en",
+            "isTransparent": false,
+            "showSymbolLogo": true,
+            "showFloatingTooltip": false,
+            "plotLineColorGrowing": "rgba(41, 98, 255, 1)",
+            "plotLineColorFalling": "rgba(41, 98, 255, 1)",
+            "gridLineColor": "rgba(42, 46, 57, 0)",
+            "scaleFontColor": "rgba(219, 219, 219, 1)",
+            "belowLineFillColorGrowing": "rgba(41, 98, 255, 0.12)",
+            "belowLineFillColorFalling": "rgba(41, 98, 255, 0.12)",
+            "belowLineFillColorGrowingBottom": "rgba(41, 98, 255, 0)",
+            "belowLineFillColorFallingBottom": "rgba(41, 98, 255, 0)",
+            "symbolActiveColor": "rgba(41, 98, 255, 0.12)"
+          }
+            </script>
+    </div>
+</div>
+          <!-- TradingView Widget END -->
+
+</div>
+
+<!-- Código de JavaScript para el reproductor de video -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var video = document.getElementById('video');
+        var videoSrc = "http://dctv.pro:8080/live/5TgmMzwQ/TtzNsnw5/208810.m3u8";
+
+        if (Hls.isSupported()) {
+            var hls = new Hls();
+            hls.loadSource(videoSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                video.play();
+            });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoSrc;
+            video.addEventListener('loadedmetadata', function() {
+                video.play();
+            });
+        }
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var video = document.getElementById('video');
+        var videoSrc = "http://dctv.pro:8080/live/5TgmMzwQ/TtzNsnw5/208810.m3u8";
+        var videoSrc = "https://api.allorigins.win/raw?url=" + encodeURIComponent("http://dctv.pro:8080/live/5TgmMzwQ/TtzNsnw5/208810.m3u8");
+
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari soporta HLS de forma nativa, así que usa <source>
+            var source = document.createElement('source');
+            source.src = videoSrc;
+            source.type = "application/vnd.apple.mpegurl";
+            video.appendChild(source);
+            video.load();
+        }
+    });
+</script>
+
+    <div class="blocks-container">
+        <div class="block">
+            <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget" id="chart1"></div>
+            </div>
+        </div>
+
+        <div class="block">
+            <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget" id="chart2"></div>
+            </div>
+        </div>
+
+        <div class="block">
+            <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget" id="chart3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+    
+</body>
+</html>
